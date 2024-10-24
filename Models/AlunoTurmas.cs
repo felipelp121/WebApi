@@ -1,4 +1,4 @@
-namespace WebApi
+namespace WebApi.Model
 {
     public class AlunoTurmas
     {

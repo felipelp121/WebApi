@@ -1,8 +1,11 @@
 using System.Diagnostics;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using WebApi.Data;
+using WebApi.DTO;
+using WebApi.Model;
 
-namespace WebApi
+namespace WebApi.Controller
 {
     [Route("api/[controller]")]
     [ApiController]

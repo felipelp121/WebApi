@@ -1,7 +1,9 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
 
-namespace WebApi
+using WebApi.Model;
+
+namespace WebApi.Configuration
 {
     public class AlunoConfiguration : IEntityTypeConfiguration<Aluno>
     {
