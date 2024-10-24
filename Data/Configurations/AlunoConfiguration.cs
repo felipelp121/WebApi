@@ -10,6 +10,7 @@ namespace WebApi
             builder.HasKey(aluno => aluno.Id);
             builder.Property(aluno => aluno.Nome).IsRequired().HasMaxLength(100);
             builder.Property(aluno => aluno.Email).IsRequired().HasMaxLength(50);
+            builder.HasIndex(aluno => aluno.Email).IsUnique();
             builder.Property(aluno => aluno.CPF).IsRequired().HasMaxLength(11);
             builder.HasIndex(aluno => aluno.CPF).IsUnique();
         }
