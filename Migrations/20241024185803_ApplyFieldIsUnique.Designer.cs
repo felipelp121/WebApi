@@ -8,7 +8,7 @@ using WebApi.Data;
 
 #nullable disable
 
-namespace WebApiC_.Migrations
+namespace WebApi.Migrations
 {
     [DbContext(typeof(ApplicationDbContext))]
     [Migration("20241024185803_ApplyFieldIsUnique")]
