@@ -2,7 +2,7 @@
 
 #nullable disable
 
-namespace WebApiC_.Migrations
+namespace WebApi.Migrations
 {
     /// <inheritdoc />
     public partial class ApplyFieldIsUnique : Migration
