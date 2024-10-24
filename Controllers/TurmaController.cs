@@ -118,7 +118,13 @@ namespace WebApi.Controller
 
                 var totalItems = await query.CountAsync();
 
-                var turmas = await query
+                var turmas = await query.Select(turma => new FillTurmaDTO
+                {
+                    Id = turma.Id,
+                    Codigo = turma.Codigo,
+                    Nivel = turma.Nivel,
+                    QuantidadeMaxima = turma.QuantidadeMaxima
+                })
                     .Skip((page - defaultFilterPage) * limit)
                     .Take(limit)
                     .ToListAsync();

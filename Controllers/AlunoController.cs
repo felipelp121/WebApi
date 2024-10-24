@@ -160,7 +160,13 @@ namespace WebApi.Controller
 
                 var totalItems = await query.CountAsync();
 
-                var alunos = await query
+                var alunos = await query.Select(aluno => new FillAlunoDTO
+                {
+                    Id = aluno.Id,
+                    Nome = aluno.Nome,
+                    CPF = aluno.CPF,
+                    Email = aluno.Email
+                })
                     .Skip((page - defaultFilterPage) * limit)
                     .Take(limit)
                     .ToListAsync();

@@ -13,6 +13,9 @@ namespace WebApi.Controller
     {
         private readonly ApplicationDbContext _context = context;
 
+        private readonly int defaultFilterLimit = 10;
+        private readonly int defaultFilterPage = 1;
+
 
         [HttpPost]
         public async Task<IActionResult> EnrollAlunoTurma(EnrollAlunoTurmaDTO alunoTurmaDTO)
@@ -75,6 +78,55 @@ namespace WebApi.Controller
 
             return Ok("Exclusão de matrícula realizada com sucesso");
 
+        }
+
+
+        [HttpPost("filter")]
+        public async Task<IActionResult> FilterAlunoTurma([FromBody] FilterAlunoTurmaDTO alunoTurmaDTO)
+        {
+            try
+            {
+                var query = _context.AlunoTurmas.AsQueryable();
+
+                if (alunoTurmaDTO.AlunoId.HasValue)
+                {
+                    query = query.Where(alunoTurma => alunoTurma.AlunoId == alunoTurmaDTO.AlunoId.Value);
+                }
+
+                if (alunoTurmaDTO.TurmaId.HasValue)
+                {
+                    query = query.Where(alunoTurma => alunoTurma.TurmaId == alunoTurmaDTO.TurmaId.Value);
+                }
+
+                
+                int page = alunoTurmaDTO.Page ?? defaultFilterPage;
+                int limit = alunoTurmaDTO.Limit ?? defaultFilterLimit;
+
+                var totalItems = await query.CountAsync();
+
+                var alunoTurmas = await query.Select(alunoTurma => new FillAlunoTurmaDTO
+                {
+                    AlunoId = alunoTurma.AlunoId,
+                    TurmaId = alunoTurma.TurmaId,
+                })
+                    .Skip((page - defaultFilterPage) * limit)
+                    .Take(limit)
+                    .ToListAsync();
+
+                
+                return Ok(new 
+                { 
+                    Page = page,
+                    Limit = limit,
+                    TotalItems = totalItems,
+                    TotalPages = (int)Math.Ceiling((double)totalItems / limit),
+                    Data = alunoTurmas
+                });
+            }
+            catch (Exception)
+            {
+                return StatusCode(500,"Erro ao buscar turmas");
+            } 
         }
     }
 }
