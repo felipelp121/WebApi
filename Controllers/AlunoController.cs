@@ -14,7 +14,7 @@ namespace WebApi
         private readonly int defaultFilterPage = 1;
 
         [HttpPost]
-        public async Task<IActionResult> CreateAluno(AlunoCreateDTO alunoDTO)
+        public async Task<IActionResult> CreateAluno(CreateAlunoDTO alunoDTO)
         {
             try
             {
@@ -25,19 +25,22 @@ namespace WebApi
                     return NotFound("Turma não encontrada");
                 }
 
-                var aluno = new Aluno(alunoDTO.Nome, alunoDTO.CPF, alunoDTO.Email);
+                var aluno = new Aluno 
+                {
+                    Nome = alunoDTO.Nome,
+                    CPF = alunoDTO.CPF,
+                    Email = alunoDTO.Email
+                };
 
                 _context.Alunos.Add(aluno);
                 await _context.SaveChangesAsync();
 
-                // var alunoTurmaExistente = await _context.AlunoTurmas.FirstOrDefaultAsync(
-                //     alunoTurma => alunoTurma.AlunoId == aluno.Id && alunoTurma.TurmaId == turma.Id
-                //     );
+                var enrollAmount = _context.AlunoTurmas.Where(alunoTurma => alunoTurma.TurmaId == turma.Id).Count();
 
-                // if (alunoTurmaExistente != null)
-                // {
-                //     return Conflict("Aluno já cadastrado nessa turma");
-                // }
+                if (enrollAmount >= turma.QuantidadeMaxima)
+                {
+                    return BadRequest("Matrícula negada, a turma não possui vaga");
+                }
 
                 var alunoTurma = new AlunoTurmas(aluno.Id, turma.Id, aluno, turma);
 
@@ -58,12 +61,12 @@ namespace WebApi
                     return Conflict("E-mail já cadastrado.");
                 }
 
-                return BadRequest("Erro ao criar o aluno.");
+                return StatusCode(500,"Erro ao criar o aluno.");
             }
         }
 
         [HttpPut]
-        public async Task<IActionResult> UpdateAluno(AlunoUpdateDTO alunoDTO)
+        public async Task<IActionResult> UpdateAluno(UpdateAlunoDTO alunoDTO)
         {
             try 
             {
@@ -94,7 +97,7 @@ namespace WebApi
                     return Conflict("E-mail já cadastrado.");
                 }
 
-                return BadRequest("Erro ao atualizar o aluno.");
+                return StatusCode(500,"Erro ao atualizar o aluno.");
             }
         }
 
@@ -111,20 +114,23 @@ namespace WebApi
                     return NotFound("Aluno não encontrado.");
                 }
 
+                var alunoTurmas = _context.AlunoTurmas.Where(alunoTurma => alunoTurma.AlunoId == id).ToList();
+
                 _context.Alunos.Remove(aluno);
+                _context.AlunoTurmas.RemoveRange(alunoTurmas);
                 await _context.SaveChangesAsync();
 
                 return Ok("Aluno removido com sucesso.");
             }
             catch (Exception)
             {
-                return BadRequest("Erro ao remover o aluno");
+                return StatusCode(500,"Erro ao remover o aluno");
             }
         }
 
 
         [HttpPost("filter")]
-        public async Task<IActionResult> GetAluno([FromBody] AlunoFilterDTO alunoDTO)
+        public async Task<IActionResult> FilterAluno([FromBody] FilterAlunoDTO alunoDTO)
         {
             try
             {
@@ -168,7 +174,7 @@ namespace WebApi
             }
             catch (Exception)
             {
-                return BadRequest("Erro ao buscar alunos");
+                return StatusCode(500,"Erro ao buscar alunos");
             } 
         }
 

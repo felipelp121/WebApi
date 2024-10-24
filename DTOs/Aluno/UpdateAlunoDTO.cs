@@ -1,6 +1,6 @@
 namespace WebApi
 {
-    public class AlunoUpdateDTO
+    public class UpdateAlunoDTO
     {
         public required int Id { get; set; }
         public string? CPF { get; set; }
