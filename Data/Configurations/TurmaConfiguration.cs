@@ -9,6 +9,7 @@ namespace WebApi
         {
             builder.HasKey(turma => turma.Id);
             builder.Property(turma => turma.Codigo).IsRequired();
+            builder.HasIndex(turma => turma.Codigo).IsUnique();
             builder.Property(turma => turma.Nivel).IsRequired();
             builder.Property(turma => turma.QuantidadeMaxima).IsRequired();
         }
