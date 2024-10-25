@@ -1,55 +1,54 @@
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.EntityFrameworkCore;
-using WebApi.Data;
 using WebApi.DTO;
 using WebApi.Model;
+using WebApi.Repository.Interface;
 
 namespace WebApi.Controller
 {
     [Route("api/[controller]")]
     [ApiController]
 
-    public class AlunoTurmaController(ApplicationDbContext context) : ControllerBase
+    public class AlunoTurmaController(
+        IAlunoTurmaRepository alunoTurmaRepository,
+        ITurmaRepository turmaRepository
+        ) : ControllerBase
     {
-        private readonly ApplicationDbContext _context = context;
+        private readonly IAlunoTurmaRepository _alunoTurmaRepository = alunoTurmaRepository;
+        private readonly ITurmaRepository _turmaRepository = turmaRepository;
 
         private readonly int defaultFilterLimit = 10;
         private readonly int defaultFilterPage = 1;
 
 
         [HttpPost]
-        public async Task<IActionResult> EnrollAlunoTurma(EnrollAlunoTurmaDTO alunoTurmaDTO)
+        public async Task<IActionResult> EnrollAlunoTurma(EnrollAlunoTurmaDTO enrollAlunoTurmaDTO)
         {
             try
             {
-                var alunoTurmaExistente = await _context.AlunoTurmas.FirstOrDefaultAsync(
-                    alunoTurma => alunoTurma.AlunoId == alunoTurmaDTO.AlunoId 
-                    && alunoTurma.TurmaId == alunoTurmaDTO.TurmaId
-                    );
+                var enroll = await _alunoTurmaRepository.GetEnrollAlunoTurma(enrollAlunoTurmaDTO);
 
-                if (alunoTurmaExistente != null)
+                if (enroll != null)
                 {
                     return Conflict("Aluno já cadastrado nessa turma");
                 }
 
-                var turma = await _context.Turmas.FindAsync(alunoTurmaDTO.TurmaId);
+                var turma = await _turmaRepository.FindTurmaByIdAsync(enrollAlunoTurmaDTO.TurmaId);
 
                 if (turma == null)
                 {
                     return NotFound("Turma não encontrada");
                 }
 
-                var enrollAmount = _context.AlunoTurmas.Where(alunoTurma => alunoTurma.TurmaId == alunoTurmaDTO.TurmaId).Count();
+                var turmaEnrollAmount = _alunoTurmaRepository.TurmaEnrollAmountById(enrollAlunoTurmaDTO.TurmaId);
 
-                if (enrollAmount >= turma.QuantidadeMaxima)
+                if (turmaEnrollAmount >= turma.QuantidadeMaxima)
                 {
                     return BadRequest("Matrícula negada, a turma não possui vaga");
                 }
 
-                var alunoTurma = new AlunoTurmas(alunoTurmaDTO.AlunoId, alunoTurmaDTO.TurmaId);
+                var alunoTurma = new AlunoTurmas(enrollAlunoTurmaDTO.AlunoId, enrollAlunoTurmaDTO.TurmaId);
 
-                _context.AlunoTurmas.Add(alunoTurma);
-                await _context.SaveChangesAsync();
+                await _alunoTurmaRepository.CreateAlunoTurmaAsync(alunoTurma);
 
                 return Ok("Aluno matrículado com sucesso na turma");
             }
@@ -61,20 +60,16 @@ namespace WebApi.Controller
 
         [HttpDelete]
 
-        public async Task<ActionResult> DeleteEnrollAlunoTurma(EnrollAlunoTurmaDTO alunoTurmaDTO)
+        public async Task<ActionResult> DeleteEnrollAlunoTurma(EnrollAlunoTurmaDTO enrollAlunoTurmaDTO)
         {
-            var alunoTurmas = _context.AlunoTurmas.Where(
-                alunoTurma => alunoTurma.AlunoId == alunoTurmaDTO.AlunoId 
-                && alunoTurma.TurmaId == alunoTurmaDTO.TurmaId
-                ).ToList();
+            var enroll = await _alunoTurmaRepository.GetEnrollAlunoTurma(enrollAlunoTurmaDTO);
             
-            if (alunoTurmas == null)
+            if (enroll == null)
             {
                 return BadRequest("Não existe matrículas associadas a esse aluno com essa turma");
             }
 
-            _context.AlunoTurmas.RemoveRange(alunoTurmas);
-            await _context.SaveChangesAsync();
+            await _alunoTurmaRepository.DeleteAlunoTurmaAsync(enroll);
 
             return Ok("Exclusão de matrícula realizada com sucesso");
 
@@ -82,38 +77,15 @@ namespace WebApi.Controller
 
 
         [HttpPost("filter")]
-        public async Task<IActionResult> FilterAlunoTurma([FromBody] FilterAlunoTurmaDTO alunoTurmaDTO)
+        public async Task<IActionResult> FilterAlunoTurma([FromBody] FilterAlunoTurmaDTO filterAlunoTurmaDTO)
         {
             try
             {
-                var query = _context.AlunoTurmas.AsQueryable();
+                int page = filterAlunoTurmaDTO.Page ?? defaultFilterPage;
+                int limit = filterAlunoTurmaDTO.Limit ?? defaultFilterLimit;
 
-                if (alunoTurmaDTO.AlunoId.HasValue)
-                {
-                    query = query.Where(alunoTurma => alunoTurma.AlunoId == alunoTurmaDTO.AlunoId.Value);
-                }
+                var (alunoTurmas, totalItems) = await _alunoTurmaRepository.FilterAlunoTurmaAsync(filterAlunoTurmaDTO, page, limit);
 
-                if (alunoTurmaDTO.TurmaId.HasValue)
-                {
-                    query = query.Where(alunoTurma => alunoTurma.TurmaId == alunoTurmaDTO.TurmaId.Value);
-                }
-
-                
-                int page = alunoTurmaDTO.Page ?? defaultFilterPage;
-                int limit = alunoTurmaDTO.Limit ?? defaultFilterLimit;
-
-                var totalItems = await query.CountAsync();
-
-                var alunoTurmas = await query.Select(alunoTurma => new FillAlunoTurmaDTO
-                {
-                    AlunoId = alunoTurma.AlunoId,
-                    TurmaId = alunoTurma.TurmaId,
-                })
-                    .Skip((page - defaultFilterPage) * limit)
-                    .Take(limit)
-                    .ToListAsync();
-
-                
                 return Ok(new 
                 { 
                     Page = page,
