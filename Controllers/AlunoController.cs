@@ -1,18 +1,23 @@
-using System.Diagnostics;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
-using WebApi.Data;
 using WebApi.DTO;
 using WebApi.Model;
+using WebApi.Repository.Interface;
 
 namespace WebApi.Controller
 {
     [Route("api/[controller]")]
     [ApiController]
 
-    public class AlunoController(ApplicationDbContext context) : ControllerBase
+    public class AlunoController(
+        IAlunoRepository alunoRepository, 
+        IAlunoTurmaRepository alunoTurmaRepository,
+        ITurmaRepository turmaRepository
+        ) : ControllerBase
     {
-        private readonly ApplicationDbContext _context = context;
+        private readonly IAlunoRepository _alunoRepository = alunoRepository;
+        private readonly IAlunoTurmaRepository _alunoTurmaRepository = alunoTurmaRepository;
+        private readonly ITurmaRepository _turmaRepository = turmaRepository;
         private readonly int defaultFilterLimit = 10;
         private readonly int defaultFilterPage = 1;
 
@@ -21,24 +26,23 @@ namespace WebApi.Controller
         {
             try
             {
-                var turma = await _context.Turmas.FirstOrDefaultAsync(turma => turma.Codigo == alunoDTO.CodigoTurma);
+                var turma = await _turmaRepository.FindTurmaByCodigoAsync(alunoDTO.CodigoTurma);
 
                 if (turma == null)
                 {
                     return NotFound("Turma não encontrada");
                 }
 
-                var aluno = new Aluno 
+                var aluno = new Aluno
                 {
                     Nome = alunoDTO.Nome,
                     CPF = alunoDTO.CPF,
                     Email = alunoDTO.Email
                 };
 
-                _context.Alunos.Add(aluno);
-                await _context.SaveChangesAsync();
+                await _alunoRepository.CreateAlunoAsync(aluno);
 
-                var enrollAmount = _context.AlunoTurmas.Where(alunoTurma => alunoTurma.TurmaId == turma.Id).Count();
+                var enrollAmount = _alunoTurmaRepository.TurmaEnrollAmountById(turma.Id);
 
                 if (enrollAmount >= turma.QuantidadeMaxima)
                 {
@@ -47,8 +51,7 @@ namespace WebApi.Controller
 
                 var alunoTurma = new AlunoTurmas(aluno.Id, turma.Id, aluno, turma);
 
-                _context.AlunoTurmas.Add(alunoTurma);
-                await _context.SaveChangesAsync();
+                await _alunoTurmaRepository.CreateAlunoTurmaAsync(alunoTurma);
 
                 return Ok("Aluno cadastrado com sucesso");
 
@@ -64,27 +67,26 @@ namespace WebApi.Controller
                     return Conflict("E-mail já cadastrado.");
                 }
 
-                return StatusCode(500,"Erro ao criar o aluno.");
+                return StatusCode(500, "Erro ao criar o aluno.");
             }
         }
 
         [HttpPut]
         public async Task<IActionResult> UpdateAluno(UpdateAlunoDTO alunoDTO)
         {
-            try 
+            try
             {
-               var aluno = await _context.Alunos.FindAsync(alunoDTO.Id);
-        
+                var aluno = await _alunoRepository.FindAlunoByIdAsync(alunoDTO.Id);
+
                 if (aluno == null)
                 {
                     return NotFound("Aluno não encontrado.");
-                } 
+                }
 
                 if (!string.IsNullOrEmpty(alunoDTO.CPF)) aluno.CPF = alunoDTO.CPF;
                 if (!string.IsNullOrEmpty(alunoDTO.Email)) aluno.Email = alunoDTO.Email;
 
-                _context.Alunos.Update(aluno);
-                await _context.SaveChangesAsync();
+                await _alunoRepository.UpdateAlunoAsync(aluno);
 
                 return Ok("Aluno atualizado com sucesso.");
 
@@ -100,7 +102,7 @@ namespace WebApi.Controller
                     return Conflict("E-mail já cadastrado.");
                 }
 
-                return StatusCode(500,"Erro ao atualizar o aluno.");
+                return StatusCode(500, "Erro ao atualizar o aluno.");
             }
         }
 
@@ -110,24 +112,22 @@ namespace WebApi.Controller
         {
             try
             {
-                var aluno = await _context.Alunos.FindAsync(id);
-                
+                var aluno = await _alunoRepository.FindAlunoByIdAsync(id);
+
                 if (aluno == null)
                 {
                     return NotFound("Aluno não encontrado.");
                 }
 
-                var alunoTurmas = _context.AlunoTurmas.Where(alunoTurma => alunoTurma.AlunoId == id).ToList();
+                var allEnrollAluno = _alunoTurmaRepository.GetAllEnrollAlunoById(id);
 
-                _context.Alunos.Remove(aluno);
-                _context.AlunoTurmas.RemoveRange(alunoTurmas);
-                await _context.SaveChangesAsync();
+                await _alunoRepository.DeleteAlunoAsync(aluno, allEnrollAluno);
 
                 return Ok("Aluno removido com sucesso.");
             }
             catch (Exception)
             {
-                return StatusCode(500,"Erro ao remover o aluno");
+                return StatusCode(500, "Erro ao remover o aluno");
             }
         }
 
@@ -137,43 +137,13 @@ namespace WebApi.Controller
         {
             try
             {
-                var query = _context.Alunos.AsQueryable();
-
-                if (alunoDTO.Id.HasValue)
-                {
-                    query = query.Where(aluno => aluno.Id == alunoDTO.Id.Value);
-                }
-
-                if (!string.IsNullOrEmpty(alunoDTO.Nome))
-                {
-                    query = query.Where(aluno => aluno.Nome.Contains(alunoDTO.Nome));
-                }
-
-                if (!string.IsNullOrEmpty(alunoDTO.Email))
-                {
-                    query = query.Where(aluno => aluno.Email.Contains(alunoDTO.Email));
-                }
-
-                
                 int page = alunoDTO.Page ?? defaultFilterPage;
                 int limit = alunoDTO.Limit ?? defaultFilterLimit;
 
-                var totalItems = await query.CountAsync();
+                var (alunos, totalItems) = await _alunoRepository.FilterAlunosAsync(alunoDTO, page, limit);
 
-                var alunos = await query.Select(aluno => new FillAlunoDTO
+                return Ok(new
                 {
-                    Id = aluno.Id,
-                    Nome = aluno.Nome,
-                    CPF = aluno.CPF,
-                    Email = aluno.Email
-                })
-                    .Skip((page - defaultFilterPage) * limit)
-                    .Take(limit)
-                    .ToListAsync();
-
-                
-                return Ok(new 
-                { 
                     Page = page,
                     Limit = limit,
                     TotalItems = totalItems,
@@ -183,8 +153,8 @@ namespace WebApi.Controller
             }
             catch (Exception)
             {
-                return StatusCode(500,"Erro ao buscar alunos");
-            } 
+                return StatusCode(500, "Erro ao buscar alunos");
+            }
         }
 
     }
