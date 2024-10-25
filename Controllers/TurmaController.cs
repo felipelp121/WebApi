@@ -1,6 +1,5 @@
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.EntityFrameworkCore;
-using WebApi.Data;
+using WebApi.Repository.Interface;
 using WebApi.DTO;
 using WebApi.Model;
 
@@ -9,9 +8,13 @@ namespace WebApi.Controller
     [Route("api/[controller]")]
     [ApiController]
 
-    public class TurmaController(ApplicationDbContext context) : ControllerBase
+    public class TurmaController(
+        ITurmaRepository turmaRepository,
+        IAlunoTurmaRepository alunoTurmaRepository
+        ) : ControllerBase
     {
-        private readonly ApplicationDbContext _context = context;
+        private readonly ITurmaRepository _turmaRepository = turmaRepository;
+        private readonly IAlunoTurmaRepository _alunoTurmaRepository = alunoTurmaRepository;
 
         private readonly int defaultFilterLimit = 10;
         private readonly int defaultFilterPage = 1;
@@ -22,8 +25,7 @@ namespace WebApi.Controller
             try
             {
                 var turma = new Turma(turmaDTO.Codigo, turmaDTO.Nivel, turmaDTO.QuantidadeMaxima);
-                _context.Turmas.Add(turma);
-                await _context.SaveChangesAsync();
+                await _turmaRepository.CreateTurmaAsync(turma);
 
                 return Ok("Turma Cadastrada com sucesso!");
             }
@@ -38,7 +40,7 @@ namespace WebApi.Controller
         {
             try 
             {
-               var turma = await _context.Turmas.FindAsync(turmaDTO.Id);
+               var turma = await _turmaRepository.FindTurmaByIdAsync(turmaDTO.Id);
         
                 if (turma == null)
                 {
@@ -49,8 +51,7 @@ namespace WebApi.Controller
                 if (turmaDTO.Nivel.HasValue) turma.Nivel = (int)turmaDTO.Nivel;
                 if (turmaDTO.QuantidadeMaxima.HasValue) turma.QuantidadeMaxima = (int)turmaDTO.QuantidadeMaxima;
 
-                _context.Turmas.Update(turma);
-                await _context.SaveChangesAsync();
+                await _turmaRepository.UpdateTurmaAsync(turma);
 
                 return Ok("Turma atualizada com sucesso.");
             }
@@ -65,22 +66,21 @@ namespace WebApi.Controller
         {
             try
             {
-                var turma = await _context.Turmas.FindAsync(id);
+                var turma = await _turmaRepository.FindTurmaByIdAsync(id);
                 
                 if (turma == null)
                 {
                     return NotFound("Turma não encontrada.");
                 }
 
-                var alunoTurmas = _context.AlunoTurmas.Where(alunoTurma => alunoTurma.TurmaId == id).Count();
+                var alunoTurmas = _alunoTurmaRepository.TurmaEnrollAmountById(id);
 
                 if (alunoTurmas > 0)
                 {
                     return BadRequest("Exclusão negada, essa turma possui alunos");
                 }
 
-                _context.Turmas.Remove(turma);
-                await _context.SaveChangesAsync();
+                await _turmaRepository.DeleteTurmaAsync(turma);
 
                 return Ok("Turma removida com sucesso.");
             }
@@ -95,41 +95,11 @@ namespace WebApi.Controller
         {
             try
             {
-                var query = _context.Turmas.AsQueryable();
-
-                if (turmaDTO.Id.HasValue)
-                {
-                    query = query.Where(turma => turma.Id == turmaDTO.Id.Value);
-                }
-
-                if (turmaDTO.Codigo.HasValue)
-                {
-                    query = query.Where(turma => turma.Codigo == turmaDTO.Codigo.Value);
-                }
-
-                if (turmaDTO.Nivel.HasValue)
-                {
-                    query = query.Where(turma => turma.Nivel == turmaDTO.Nivel.Value);
-                }
-
-                
                 int page = turmaDTO.Page ?? defaultFilterPage;
                 int limit = turmaDTO.Limit ?? defaultFilterLimit;
 
-                var totalItems = await query.CountAsync();
+                var (turmas, totalItems) = await _turmaRepository.FilterTurmasAsync(turmaDTO, page, limit);
 
-                var turmas = await query.Select(turma => new FillTurmaDTO
-                {
-                    Id = turma.Id,
-                    Codigo = turma.Codigo,
-                    Nivel = turma.Nivel,
-                    QuantidadeMaxima = turma.QuantidadeMaxima
-                })
-                    .Skip((page - defaultFilterPage) * limit)
-                    .Take(limit)
-                    .ToListAsync();
-
-                
                 return Ok(new 
                 { 
                     Page = page,
