@@ -27,4 +27,8 @@ Esta é uma API de estudo, desenvolvida em ASP.NET Core que permite gerenciar al
 - `DELETE /api/alunoTurma`: Desmatricula um aluno de uma turma.
 
 
-![alt text](image.png)
+![alt text](image-1.png)
+
+
+- .Net version 8.0.403
+- MariaDB version 10.4.28
